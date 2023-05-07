@@ -7,7 +7,7 @@ To use the CBIS_DDSM-File-Sorter, follow these steps:
 
     1.)Clone the repository or download the files onto your local machine.
     2.)Install the necessary Python packages by running the following command: pip install -r requirements.txt
-    3.)Open cbis_ddsm_file_sorter.py in your favorite Python editor or IDE.
+    3.)Open Dir_Tester.py in your favorite Python editor or IDE(Anaconda is best).
     4.)Modify the INPUT_PATH variable at the top of the script to the path where your DICOM files are stored.
     5.)Modify the OUTPUT_PATH variable at the top of the script to the path where you want to store the filtered DICOM files.
     6.)Run the script by executing python cbis_ddsm_file_sorter.py in your terminal or Python environment.
