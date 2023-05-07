@@ -21,9 +21,9 @@ The resulting zip file created by the CBIS_DDSM-File-Sorter is compatible with t
 
 python
 
-import numpy as np
-import pydicom
-import os
+    import numpy as np
+    import pydicom
+    import os
     # Test with CBIS_DDSM image
     #
     import numpy as np
