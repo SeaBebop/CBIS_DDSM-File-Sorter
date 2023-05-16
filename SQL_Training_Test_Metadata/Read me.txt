@@ -1,0 +1,21 @@
+***
+Metadata_roi_only.csv is a fused table of metadata.csv and 
+all the test and training data. This means it contains columns like 
+pathology(classification) while having the folder paths of each ROI folder.
+
+Goal is to use this table to aid in script searching all the ROI dcm files 
+and perhaps simipify code.
+
+***
+Scripts folder is how to create each csv. 
+In this order:
+Run the test and training data.sql,
+Run the Metadata.sql
+Run the Metadata_Edited.sql
+Run the Metadata_roi.sql
+ 
+***
+Misc. Details
+
+Metadata_edited.csv is the filtered metadata.csv up that only contains ROI entries
+but isn't a fused table(so no classification details)
