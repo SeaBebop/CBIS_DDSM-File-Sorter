@@ -148,6 +148,7 @@ else:
     #Test with CBIS_DDSM image
     
     import numpy as np
+    from sklearn.preprocessing import MinMaxScaler
     from tensorflow.keras.preprocessing.image import load_img, img_to_array
     from tensorflow.keras.models import Model, Sequential
     import keras
@@ -160,7 +161,11 @@ else:
     import pydicom        # install the pydicom package
     from PIL import Image # install the pillow package and it is called PIL.
     from sklearn.model_selection import train_test_split
-    
+    from tensorflow.keras.utils import plot_model
+    from matplotlib import pyplot
+    # train autoencoder for classification with no compression in the bottleneck layer
+    import keras
+    from keras import layers
     h = 256
     w = 256
     ch = 1
@@ -208,5 +213,51 @@ else:
         #plt.show()
     #print(dcmMask.shape)
 
-    x_train, x_test, y_train, y_test = train_test_split(dcmMask, y_label, test_size=0.20, random_state=7)
+    x_train, x_test, y_train, y_test = train_test_split(dcmMask, y_label, test_size=0.30, random_state=7)
+
+    #Normalize the array to 0 and 1
+    #print(x_train.shape)
+    x_train = x_train.astype('float32') / 255.
+    x_test = x_test.astype('float32') / 255.
+    x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
+    x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
+    #print(x_train.shape)
+    
+    #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
+    # This is the size of our encoded representations
+    encoding_dim = 32  # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
+    
+    #Change to fit our current expected input (256,256,1)
+    n_input = 256*256*1
+    # This is our input image
+    input_img = keras.Input(shape=(n_input,))
+    # "encoded" is the encoded representation of the input
+    encoded = layers.Dense(encoding_dim, activation='relu')(input_img)
+    # "decoded" is the lossy reconstruction of the input
+    decoded = layers.Dense(n_input, activation='sigmoid')(encoded)
+    
+    # This model maps an input to its reconstruction
+    autoencoder = keras.Model(input_img, decoded)
+    
+    # This model maps an input to its encoded representation
+    encoder = keras.Model(input_img, encoded)
+    # This is our encoded (32-dimensional) input
+    encoded_input = keras.Input(shape=(encoding_dim,))
+    # Retrieve the last layer of the autoencoder model
+    decoder_layer = autoencoder.layers[-1]
+    # Create the decoder model
+    decoder = keras.Model(encoded_input, decoder_layer(encoded_input))
+    
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+    plot_model(autoencoder, 'autoencoder_no_compress.png', show_shapes=True)    
+    history = autoencoder.fit(x_train, x_train,
+                        epochs=10,
+                        batch_size=256,
+                        shuffle=True,
+                        validation_data=(x_test, x_test))
+    pyplot.plot(history.history['loss'], label='train')
+    pyplot.plot(history.history['val_loss'], label='test')
+    pyplot.legend()
+    pyplot.show()
     
