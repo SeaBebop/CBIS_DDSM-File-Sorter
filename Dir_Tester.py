@@ -25,7 +25,7 @@ from tqdm import tqdm
 *That zip file is organized in a why that it still works in the code down below
 *Test with CBIS_DDSM image"
 
->The zip file is 148mb and the extracted data is roughly 60gb~ of DCM organized in their respective folders
+>The zip file is 148mb and the extracted data is roughly 2gb~ of DCM organized in their respective folders
 >Roughly 4000 DCM of test and training data
 
 """
@@ -34,7 +34,7 @@ print('\nA folder tab just opened! Select the folder that is one place away from
 print('Example: if your CBIS-DDSM location is D:\chi\DDSM\Mass_train_roi\CBIS-DDSM')
 print('Then select D:\chi\DDSM\Mass_train_roi')
 
-zipUserInput= input('Would you like to create a zip file? The reduced extracted data is 60gb~ and the zip file is (y/n): ').lower().strip() == 'y'
+zipUserInput= input('Would you like to create a zip file? The reduced extracted data is 2gb~ and the zip file is (y/n): ').lower().strip() == 'y'
 
 path = askdirectory(title='Select Folder') 
 #print(path)  
@@ -43,7 +43,7 @@ cleaned_path = path.replace(r'/',r"\\" )
 #print(cleaned_path)         
    
 list_dir_name = path
-data = pd.read_csv("./SQL_Training_Test_Metadata/file_path_with_label_NoI.csv")
+data = pd.read_csv("./SQL_Training_Test_Metadata/file_path_with_label_NoI_pathology.csv")
 
 size_list_dir = []
 finalized_list_dir = [] 
@@ -52,6 +52,7 @@ finalized_list_dir = []
 Label_list = []
 #Number of Images
 Number_of_Images=[]
+Pathology=[]
 folder = []
 #The counter is used to align the labels and the File Location together
 counter = 0;
@@ -59,6 +60,7 @@ counter = 0;
 #print()
 #Checker is to test the individual file location and how does it look as a str
 checker = ''
+
 for file in data['File_Location']:
     #If statement is checking if there are two files in the folder. If there is,
     #append the name and location of the two files onto the list, 
@@ -72,23 +74,24 @@ for file in data['File_Location']:
         
         Label_list.append(data['ROI_mask_file_path'][counter])
         Number_of_Images.append(data['Number_of_Images'][counter])
-        
-        
+        Pathology.append(data['pathology'][counter])        
+
         finalized_list_dir.append(list_dir_name + file[1:].replace('\\' ,'/')  +'/'+  
                                   fr'{os.listdir(list_dir_name + file)[1]}')
         folder.append(list_dir_name + file[1:].replace('\\' ,'/') +'/')
         Label_list.append(data['ROI_mask_file_path'][counter])
         Number_of_Images.append(data['Number_of_Images'][counter])
-        
+        Pathology.append(data['pathology'][counter])        
         
         counter+=1
         #checker = list_dir_name + file + r'\\'+ os.listdir(list_dir_name + file)[1]
     else:
         folder.append(list_dir_name + file[1:].replace('\\' ,'/') +'/')
-        finalized_list_dir.append(list_dir_name + file +'\\'+
-                                  fr'{os.listdir(list_dir_name + file)[0]}')
+        finalized_list_dir.append(list_dir_name + file[1:].replace('\\' ,'/') +'/'+  
+                             fr'{os.listdir(list_dir_name + file)[0]}')
         Label_list.append(data['ROI_mask_file_path'][counter])
         Number_of_Images.append(data['Number_of_Images'][counter])
+        Pathology.append(data['pathology'][counter])
         counter+=1
 else:
     #print(finalized_list_dir)
@@ -110,7 +113,7 @@ else:
 
     #Creating a csv of my results
     dictionary = {'DCM_File_Path':finalized_list_dir,'DCM_File_Size':size_list_dir,
-                  'Label':Label_list,'Number of Images': Number_of_Images,'Folder':folder}
+                  'Label':Label_list,'Number of Images': Number_of_Images,'Folder':folder,'Classification': Pathology}
     
     #df = pd.DataFrame(series)
     #df = df.replace('\\\\','\\\\\\\\', regex=True)
@@ -124,59 +127,86 @@ else:
     df = df.replace('.','')
     #This is filter for only the ROI
     #edited_df = df[df['DCM_File_Size'] > 1130000]
-    edited_df = df.loc[df['DCM_File_Size'] > 9865000]
+    edited_df = df.loc[df['DCM_File_Size'] < 98000]
     edited_df.to_csv('DCM_File_Paths_Reduced.csv')
     
     #print(edited_df['DCM_File_Path'].iloc[0])
    
     #This takes in the reduced DCM ROI to a zip file
-
-    """
-    ####Testing if it load the images from the list
-    #
-    # Test with CBIS_DDSM image
-    #
+    
+    if(zipUserInput == True):
+        with ZipFile('dcm.zip','w', compression= ZIP_DEFLATED) as z:
+            for dcmIndex in tqdm(range(len(edited_df))):
+                z.write(edited_df['DCM_File_Path'].iloc[dcmIndex])
+                
+    else:
+        print('Okay, zip file was not created')
+            
+    
+    #Testing if it load the images from the list
+    
+    #Test with CBIS_DDSM image
+    
     import numpy as np
     from tensorflow.keras.preprocessing.image import load_img, img_to_array
-    ##from tensorflow.keras.models import Model, Sequential
-    #import keras
-    #from keras.models import Model, Sequential
-    #from keras.layers import Input, Dense, Conv2D
-    #from keras.layers import MaxPooling2D, UpSampling2D, Flatten, Reshape
+    from tensorflow.keras.models import Model, Sequential
+    import keras
+    from keras.models import Model, Sequential
+    from keras.layers import Input, Dense, Conv2D
+    from keras.layers import MaxPooling2D, UpSampling2D, Flatten, Reshape
     #from keras.preprocessing.image import load_img, img_to_array
     import matplotlib.pyplot as plt
     import pandas as pd
     import pydicom        # install the pydicom package
     from PIL import Image # install the pillow package and it is called PIL.
+    from sklearn.model_selection import train_test_split
     
     h = 256
     w = 256
     ch = 1
     
-    print()
-    #dicomdata = pydicom.read_file('1-2.dcm') # just a mask
 
-    This is the example code that tests out dcms
-    Using the finalized_list_dir I can use my locations
-    This also means of course I can loop them, show the labels of each of them,etc
+
+
+    #This is the example code that tests out dcms
+    #Using the finalized_list_dir I can use my locations
+    #This also means of course I can loop them, show the labels of each of them,etc
     
-
+    trigger = 0
     counter = 0
-    train_data = np.zeros((len(finalized_list_dir),h,w,1), dtype="uint8")
+    dcmMask = np.zeros((len(edited_df),h,w,1), dtype="uint8")
+    y_label = []
+
     
-    for i in tqdm(range(0,len(finalized_list_dir))):
-      
-        dicomdata = pydicom.read_file(finalized_list_dir[i])  # masked image
+    for i in tqdm(range(0,len(edited_df))):
+        #Setting up x and y
+        dicomdata = pydicom.read_file(edited_df['DCM_File_Path'].iloc[i],force=True)  # masked image
+        y_label.append(edited_df['Classification'].iloc[i]) 
+        #Testing if labels and dcm align properly 
+        #if trigger < 5:
+        #    print('This is class ',i+20,edited_df['Classification'].iloc[i+20])
+        #    print('This is path ', i+20,edited_df['DCM_File_Path'].iloc[i+20])
+        #    trigger+=1
+        #Converting to numpy array
         tmp = np.zeros((dicomdata.Rows, dicomdata.Columns), dtype="float32")
         tmp = dicomdata.pixel_array/65535.0
             
         img = Image.fromarray(tmp)
         img_resize = img.resize((h,w), Image.LANCZOS)
         tmp2 = img_to_array(img_resize)
-        train_data[i] = tmp2.reshape((h,w,ch))
-    
+        dcmMask[i] = tmp2.reshape((h,w,ch))
+        #Testing if data is set up as a 3d Rensor
+        #if trigger == 0:
+        #    print('this is dimension',dcmMask[i].ndim)
+        #    print('this is shape',dcmMask[i].shape)
+        #    print('this is type',dcmMask[i].dtype)
+        #    print('this looks like this', dcmMask[i])
+        #    trigger+=1
         #If you are interested to see all the pictures individually,increased runtime
         #data = tmp2.reshape((h,w,ch))
         #plt.imshow(np.reshape(data, (h, w)), cmap='gray')
         #plt.show()
-"""
+    #print(dcmMask.shape)
+
+    x_train, x_test, y_train, y_test = train_test_split(dcmMask, y_label, test_size=0.20, random_state=7)
+    
