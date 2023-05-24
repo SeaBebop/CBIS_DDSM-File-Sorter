@@ -225,7 +225,8 @@ else:
     
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    encoding_dim = 32  # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
+    encoding_dim = 32
+  # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
     
     #Change to fit our current expected input (256,256,1)
     n_input = 256*256*1
@@ -248,12 +249,12 @@ else:
     # Create the decoder model
     decoder = keras.Model(encoded_input, decoder_layer(encoded_input))
     
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy',metrics=['accuracy'])
 
     plot_model(autoencoder, 'autoencoder_no_compress.png', show_shapes=True)    
     history = autoencoder.fit(x_train, x_train,
-                        epochs=10,
-                        batch_size=256,
+                        epochs=30,
+                        batch_size=150,
                         shuffle=True,
                         validation_data=(x_test, x_test))
     pyplot.plot(history.history['loss'], label='train')
