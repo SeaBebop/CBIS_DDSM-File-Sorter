@@ -10,10 +10,11 @@ import pandas as pd
 from tkinter import Tk
 from zipfile import ZipFile
 from zipfile import ZIP_DEFLATED
+from zipfile import ZIP_STORED
 from tkinter.filedialog import askdirectory
 from time import sleep
 from tqdm import tqdm
-
+import shutil
 
 
 """
@@ -25,8 +26,10 @@ from tqdm import tqdm
 *That zip file is organized in a why that it still works in the code down below
 *Test with CBIS_DDSM image"
 
->The zip file is 148mb and the extracted data is roughly 2gb~ of DCM organized in their respective folders
->Roughly 4000 DCM of test and training data
+>The zip file is 148mb and the extracted data is roughly 39.5MB~ of DCM organized in their respective folders
+>Roughly 700 DCM of test and training data
+
+NOTE: If somehow the dcm files are still incorrect,swap the sign on lines 130-135
 
 """
 
@@ -34,7 +37,7 @@ print('\nA folder tab just opened! Select the folder that is one place away from
 print('Example: if your CBIS-DDSM location is D:\chi\DDSM\Mass_train_roi\CBIS-DDSM')
 print('Then select D:\chi\DDSM\Mass_train_roi')
 
-zipUserInput= input('Would you like to create a zip file? The reduced extracted data is 2gb~ and the zip file is (y/n): ').lower().strip() == 'y'
+UserInput= input("Would you like to create a reduced_folder?? The reduced extracted data is 39.5MB~ and the zip file is uncompressed(y/n): ").lower().strip() == 'y'
 
 path = askdirectory(title='Select Folder') 
 #print(path)  
@@ -67,7 +70,7 @@ for file in data['File_Location']:
     #if not then there is only 1 file to append
     
     if(len(os.listdir(list_dir_name + file)) == 2):
-        folder.append(list_dir_name + file[1:].replace('\\' ,'/') +'/')
+        folder.append(file[1:])
         
         finalized_list_dir.append(list_dir_name + file[1:].replace('\\' ,'/') +'/'+  
                                   fr'{os.listdir(list_dir_name + file)[0]}')
@@ -78,7 +81,7 @@ for file in data['File_Location']:
 
         finalized_list_dir.append(list_dir_name + file[1:].replace('\\' ,'/')  +'/'+  
                                   fr'{os.listdir(list_dir_name + file)[1]}')
-        folder.append(list_dir_name + file[1:].replace('\\' ,'/') +'/')
+        folder.append(file[1:])
         Label_list.append(data['ROI_mask_file_path'][counter])
         Number_of_Images.append(data['Number_of_Images'][counter])
         Pathology.append(data['pathology'][counter])        
@@ -86,7 +89,7 @@ for file in data['File_Location']:
         counter+=1
         #checker = list_dir_name + file + r'\\'+ os.listdir(list_dir_name + file)[1]
     else:
-        folder.append(list_dir_name + file[1:].replace('\\' ,'/') +'/')
+        folder.append(file[1:])
         finalized_list_dir.append(list_dir_name + file[1:].replace('\\' ,'/') +'/'+  
                              fr'{os.listdir(list_dir_name + file)[0]}')
         Label_list.append(data['ROI_mask_file_path'][counter])
@@ -134,10 +137,20 @@ else:
    
     #This takes in the reduced DCM ROI to a zip file
     
-    if(zipUserInput == True):
-        with ZipFile('dcm.zip','w', compression= ZIP_DEFLATED) as z:
+    if(UserInput == True):
+    #Folder location is based on where CBIS-DDSM is as previousily selected
+    #Folder size should be 39.5 MB with 700 files that are inside 700 folders
+    
+        print('Creating a folder name reduced file in the \CBIS-DDSM directory. . .')
+        
+        if not os.path.exists(list_dir_name + '/reduced_files'):
+            os.mkdir(list_dir_name + '/reduced_files')
             for dcmIndex in tqdm(range(len(edited_df))):
-                z.write(edited_df['DCM_File_Path'].iloc[dcmIndex])
+                os.mkdir( list_dir_name + '/reduced_files' + "/" + edited_df['Label'].iloc[dcmIndex])
+                folder_name =  list_dir_name + '/reduced_files' + "/" + edited_df['Label'].iloc[dcmIndex]
+                shutil.copy(edited_df['DCM_File_Path'].iloc[dcmIndex], folder_name)
+        else:
+            print('Error: reduced_file folder already created, if you want to remake it, delete that folder')
                 
     else:
         print('Okay, zip file was not created')
@@ -172,7 +185,7 @@ else:
     
 
 
-
+"""
     #This is the example code that tests out dcms
     #Using the finalized_list_dir I can use my locations
     #This also means of course I can loop them, show the labels of each of them,etc
@@ -223,9 +236,10 @@ else:
     x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
     #print(x_train.shape)
     
+    #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    encoding_dim = 32
+    encoding_dim = 16
   # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
     
     #Change to fit our current expected input (256,256,1)
@@ -235,6 +249,7 @@ else:
     # "encoded" is the encoded representation of the input
     encoded = layers.Dense(encoding_dim, activation='relu')(input_img)
     # "decoded" is the lossy reconstruction of the input
+    
     decoded = layers.Dense(n_input, activation='sigmoid')(encoded)
     
     # This model maps an input to its reconstruction
@@ -253,7 +268,7 @@ else:
 
     plot_model(autoencoder, 'autoencoder_no_compress.png', show_shapes=True)    
     history = autoencoder.fit(x_train, x_train,
-                        epochs=30,
+                        epochs=200,
                         batch_size=150,
                         shuffle=True,
                         validation_data=(x_test, x_test))
@@ -261,4 +276,4 @@ else:
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
     pyplot.show()
-    
+    """
