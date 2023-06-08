@@ -16,6 +16,7 @@ from time import sleep
 from tqdm import tqdm
 import shutil
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 """
 #Objective of this program is:
@@ -148,6 +149,7 @@ else:
             for dcmIndex in tqdm(range(len(edited_df))):
                 os.mkdir( list_dir_name + '/reduced_files' + "/" + edited_df['Label'].iloc[dcmIndex])
                 folder_name =  list_dir_name + '/reduced_files' + "/" + edited_df['Label'].iloc[dcmIndex]
+                print(folder_name)
                 shutil.copy(edited_df['DCM_File_Path'].iloc[dcmIndex], folder_name)
         else:
             print('Error: reduced_file folder already created, if you want to remake it, delete that folder')
@@ -169,12 +171,13 @@ else:
     from keras.layers import Input, Dense, Conv2D
     from keras.layers import MaxPooling2D, UpSampling2D, Flatten, Reshape
     #from keras.preprocessing.image import load_img, img_to_array
+    from tensorflow.keras.regularizers import l1
     import matplotlib.pyplot as plt
     import pandas as pd
     import pydicom        # install the pydicom package
     from PIL import Image # install the pillow package and it is called PIL.
     from sklearn.model_selection import train_test_split
-    from tensorflow.keras.utils import plot_model
+
     from matplotlib import pyplot
     # train autoencoder for classification with no compression in the bottleneck layer
     import keras
@@ -185,7 +188,7 @@ else:
     
 
 
-"""
+
     #This is the example code that tests out dcms
     #Using the finalized_list_dir I can use my locations
     #This also means of course I can loop them, show the labels of each of them,etc
@@ -239,7 +242,10 @@ else:
     #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    encoding_dim = 16
+    dim_1 = 32768
+    dim_2 = dim_1/32
+    dim_3 = dim_1/64
+    dim_4 = dim_1/128
   # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
     
     #Change to fit our current expected input (256,256,1)
@@ -247,33 +253,126 @@ else:
     # This is our input image
     input_img = keras.Input(shape=(n_input,))
     # "encoded" is the encoded representation of the input
-    encoded = layers.Dense(encoding_dim, activation='relu')(input_img)
+    encoded_1 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(input_img)
+    encoded_2 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(encoded_1)
+    encoded_3 = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(encoded_2)
     # "decoded" is the lossy reconstruction of the input
+    bottleneck = layers.Dense(dim_4, activation='relu',activity_regularizer=l1(0.001))(encoded_3)
     
-    decoded = layers.Dense(n_input, activation='sigmoid')(encoded)
+    decoded_1 = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(bottleneck)
+    decoded_2 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(decoded_1)
+    decoded_3 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(decoded_2)
+    output = layers.Dense(n_input, activation='sigmoid')(decoded_2)
     
     # This model maps an input to its reconstruction
-    autoencoder = keras.Model(input_img, decoded)
-    
+    autoencoder = keras.Model(input_img, output)
+    """
     # This model maps an input to its encoded representation
-    encoder = keras.Model(input_img, encoded)
+    encoder = keras.Model(input_img, bottleneck)
     # This is our encoded (32-dimensional) input
-    encoded_input = keras.Input(shape=(encoding_dim,))
+    encoded_input = keras.Input(shape=(dim_3,))
     # Retrieve the last layer of the autoencoder model
-    decoder_layer = autoencoder.layers[-1]
+    decoder_layer_1 = autoencoder.layers[-3]
+    decoder_layer_2 = autoencoder.layers[-2](decoder_layer_1)
+    decoded =  autoencoder.layers[-1](decoder_layer_2)
     # Create the decoder model
-    decoder = keras.Model(encoded_input, decoder_layer(encoded_input))
-    
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy',metrics=['accuracy'])
+    decoder = keras.Model(encoded_input, decoded)
+    """
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
-    plot_model(autoencoder, 'autoencoder_no_compress.png', show_shapes=True)    
+  
     history = autoencoder.fit(x_train, x_train,
-                        epochs=200,
-                        batch_size=150,
+                        epochs=100,batch_size=16,
+                       
                         shuffle=True,
                         validation_data=(x_test, x_test))
     pyplot.plot(history.history['loss'], label='train')
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
     pyplot.show()
-    """
+   
+"""
+#Simple Undercomplete
+import tensorflow  as tf
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense,Input
+(x_train,_), (x_test,_)= mnist.load_data()
+x_train = x_train.astype('float32') / 255
+x_test = x_test.astype('float32') / 255
+x_train=x_train.reshape((len(x_train),np.prod(x_train.shape[1:])))
+x_test=x_test.reshape((len(x_test),np.prod(x_test.shape[1:])))## Shape of the x_train is (60000, 784)
+## Shape of the x_test is (10000,784)
+input_l=Input(shape=(784,))
+bottleneck=Dense(32, activation='relu')(input_l)
+output_l=Dense(784, activation='sigmoid')(bottleneck)
+autoencoder=Model(inputs=[input_l],outputs=[output_l])    ## Building the entire autoencoder
+encoder=Model(inputs=[input_l],outputs=[bottleneck])    ## Building the encoder
+encoded_input=Input(shape=(32,))
+decoded=autoencoder.layers[-1](encoded_input)
+decoder=Model(inputs=[encoded_input],outputs=[decoded])      ##Building the decoder
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+autoencoder.fit(x_train, x_train,
+                epochs=50,
+                batch_size=256,
+                shuffle=True,
+                validation_data=(x_test, x_test))
+"""
+#sparse autoencoder
+"""
+import tensorflow  as tf
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense,Input
+from tensorflow.keras.regularizers import l1
+(x_train,_), (x_test,_)= mnist.load_data()
+x_train = x_train.astype('float32') / 255
+x_test = x_test.astype('float32') / 255
+x_train=x_train.reshape((len(x_train),np.prod(x_train.shape[1:])))
+x_test=x_test.reshape((len(x_test),np.prod(x_test.shape[1:])))
+## Shape of the x_train is (60000, 784)
+## Shape of the x_test is (10000,784)
+input_l=Input(shape=(784,))
+encoding_1=Dense(256, activation='relu', activity_regularizer=l1(0.001))(input_l)
+bottleneck=Dense(32, activation='relu', activity_regularizer=l1(0.001))(encoding_1)
+decoding_1=Dense(256, activation='relu', activity_regularizer=l1(0.001))(bottleneck)
+output_l=Dense(784, activation='sigmoid')(decoding_1)
+autoencoder=Model(inputs=[input_l],outputs=[output_l])
+encoder=Model(inputs=[input_l],outputs=[bottleneck])
+encoded_input=Input(shape=(32,))
+decoded_layer_2=autoencoder.layers[-2](encoded_input)
+decoded=autoencoder.layers[-1](decoded_layer_2)
+decoder=Model(inputs=[encoded_input],outputs=[decoded])
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+autoencoder.fit(x_train, x_train,
+                epochs=50,
+                batch_size=256,
+                shuffle=True,
+
+"""
+#Denoising autoencoder, most interested in this one
+"""
+import tensorflow  as tf
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense,Input
+from tensorflow.keras.regularizers import l1
+
+input_l=Input(shape=(28,28,1))
+encoding_1=Conv2D(32, (3,3), activation='relu',padding='same')(input_l)
+maxp_1=MaxPooling2D((2,2), padding='same')(encoding_1)
+encoding_2=Conv2D(16, (3,3), activation='relu',padding='same')(maxp_1)
+maxp_2=MaxPooling2D((2,2), padding='same')(encoding_2)
+encoding_3=Conv2D(8, (3,3), activation='relu',padding='same')(maxp_2)
+bottleneck=MaxPooling2D((2,2), padding='same')(encoding_3)
+decoding_1=Conv2D(8, (3,3), activation='relu', padding='same')(bottleneck)
+Up_1=UpSampling2D((2,2))(decoding_1)
+decoding_2=Conv2D(16, (3,3), activation='relu', padding='same')(Up_1)
+Up_2=UpSampling2D((2,2))(decoding_2)
+decoding_3=Conv2D(32, (3,3), activation='relu')(Up_2)
+Up_3=UpSampling2D((2,2))(decoding_3)
+output_l= Conv2D(1,(3,3),activation='sigmoid',padding='same')(Up_3)
+autoencoder=Model(inputs=[input_l],outputs=[output_l])
+encoder=Model(inputs=[input_l],outputs=[bottleneck])
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+"""
