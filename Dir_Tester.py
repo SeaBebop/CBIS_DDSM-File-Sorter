@@ -188,7 +188,6 @@ else:
     
 
 
-
     #This is the example code that tests out dcms
     #Using the finalized_list_dir I can use my locations
     #This also means of course I can loop them, show the labels of each of them,etc
@@ -242,10 +241,9 @@ else:
     #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    dim_1 = 32768
-    dim_2 = dim_1/32
-    dim_3 = dim_1/64
-    dim_4 = dim_1/128
+    dim_1 = 32768/16
+    dim_2 = dim_1/64
+    dim_3 = dim_1/128
   # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
     
     #Change to fit our current expected input (256,256,1)
@@ -255,13 +253,11 @@ else:
     # "encoded" is the encoded representation of the input
     encoded_1 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(input_img)
     encoded_2 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(encoded_1)
-    encoded_3 = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(encoded_2)
     # "decoded" is the lossy reconstruction of the input
-    bottleneck = layers.Dense(dim_4, activation='relu',activity_regularizer=l1(0.001))(encoded_3)
+    bottleneck = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(encoded_2)
     
-    decoded_1 = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(bottleneck)
-    decoded_2 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(decoded_1)
-    decoded_3 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(decoded_2)
+    decoded_1 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(bottleneck)
+    decoded_2 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(decoded_1)
     output = layers.Dense(n_input, activation='sigmoid')(decoded_2)
     
     # This model maps an input to its reconstruction
@@ -279,13 +275,16 @@ else:
     decoder = keras.Model(encoded_input, decoded)
     """
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-
+    
   
     history = autoencoder.fit(x_train, x_train,
-                        epochs=100,batch_size=16,
+                        epochs=200,batch_size=16,
                        
                         shuffle=True,
                         validation_data=(x_test, x_test))
+    encoder = keras.Model(input_img, bottleneck)
+    
+    autoencoder.save('autoencoder.h5')
     pyplot.plot(history.history['loss'], label='train')
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
