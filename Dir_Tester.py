@@ -127,7 +127,6 @@ else:
     #print(cleaned_path)
     #print(path)
 
-   
     df = df.replace('.','')
     #This is filter for only the ROI
     #edited_df = df[df['DCM_File_Size'] > 1130000]
@@ -191,6 +190,9 @@ else:
     #This is the example code that tests out dcms
     #Using the finalized_list_dir I can use my locations
     #This also means of course I can loop them, show the labels of each of them,etc
+    #Saturation 
+    #Standard of pixals 2^16
+    #Film to digits, 8->16bytes, etc
     
     trigger = 0
     counter = 0
@@ -210,22 +212,36 @@ else:
         #Converting to numpy array
         tmp = np.zeros((dicomdata.Rows, dicomdata.Columns), dtype="float32")
         tmp = dicomdata.pixel_array/65535.0
+        
+   
             
         img = Image.fromarray(tmp)
+        #Data
         img_resize = img.resize((h,w), Image.LANCZOS)
+        #Float64->32->int 
         tmp2 = img_to_array(img_resize)
         dcmMask[i] = tmp2.reshape((h,w,ch))
+        
         #Testing if data is set up as a 3d Rensor
-        #if trigger == 0:
-        #    print('this is dimension',dcmMask[i].ndim)
-        #    print('this is shape',dcmMask[i].shape)
-        #    print('this is type',dcmMask[i].dtype)
-        #    print('this looks like this', dcmMask[i])
-        #    trigger+=1
+        
+        if trigger == 0:
+            print('tmp dt',tmp.dtype)
+            print('tmp shape',tmp.shape)
+
+            print('tmp2 dt',tmp2.dtype)
+            print('tmp2 shape',tmp2.shape)
+            
+            print('this is dimension',dcmMask[i].ndim)
+            print('this is shape',dcmMask[i].shape)
+            print('this is type',dcmMask[i].dtype)
+            print('this looks like this', dcmMask[i])
+            print('This is amax ',np.amax(dcmMask))
+            data = tmp2.reshape((h,w,ch))
+            plt.imshow(np.reshape(data, (h, w)), cmap='gray')
+            plt.show()
+            trigger+=1
         #If you are interested to see all the pictures individually,increased runtime
-        #data = tmp2.reshape((h,w,ch))
-        #plt.imshow(np.reshape(data, (h, w)), cmap='gray')
-        #plt.show()
+
     #print(dcmMask.shape)
 
     x_train, x_test, y_train, y_test = train_test_split(dcmMask, y_label, test_size=0.30, random_state=7)
@@ -237,15 +253,18 @@ else:
     x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
     x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
     #print(x_train.shape)
-    
+    print('test1',y_test)
+    print('train1',y_train)
     #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
+    """
     dim_1 = 32768/16
     dim_2 = dim_1/64
     dim_3 = dim_1/128
   # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
     
+    #Sparse Autoencoder That I made
     #Change to fit our current expected input (256,256,1)
     n_input = 256*256*1
     # This is our input image
@@ -262,18 +281,18 @@ else:
     
     # This model maps an input to its reconstruction
     autoencoder = keras.Model(input_img, output)
-    """
+    
     # This model maps an input to its encoded representation
-    encoder = keras.Model(input_img, bottleneck)
+    #encoder = keras.Model(input_img, bottleneck)
     # This is our encoded (32-dimensional) input
-    encoded_input = keras.Input(shape=(dim_3,))
+    #encoded_input = keras.Input(shape=(dim_3,))
     # Retrieve the last layer of the autoencoder model
-    decoder_layer_1 = autoencoder.layers[-3]
-    decoder_layer_2 = autoencoder.layers[-2](decoder_layer_1)
-    decoded =  autoencoder.layers[-1](decoder_layer_2)
+    #decoder_layer_1 = autoencoder.layers[-3]
+    #decoder_layer_2 = autoencoder.layers[-2](decoder_layer_1)
+    #decoded =  autoencoder.layers[-1](decoder_layer_2)
     # Create the decoder model
-    decoder = keras.Model(encoded_input, decoded)
-    """
+    #decoder = keras.Model(encoded_input, decoded)
+    
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
     
   
@@ -289,7 +308,60 @@ else:
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
     pyplot.show()
-   
+    """ 
+    #xgboost
+    import xgboost as xgb
+    from tensorflow.keras.models import load_model
+    from sklearn.metrics import accuracy_score
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.linear_model import LogisticRegression
+    le = LabelEncoder()
+    y_test_Label = le.fit_transform(y_test)
+    #I have no idea how to use this with feature extraction yet
+    #dtrain_reg = xgb.DMatrix(x_train, y_train, enable_categorical=True)
+    #dtest_reg = xgb.DMatrix(x_test, y_test, enable_categorical=True)
+    
+    autoencoder = load_model('autoencoder.h5')
+    
+    
+    X_train_encode = autoencoder.predict(x_train)
+    X_test_encode = autoencoder.predict(x_test)
+    
+    print('test2',y_test)
+    print('train2',y_train)
+    print('test3',x_test)
+    print('train3',x_train)
+    print('encoded_train',X_train_encode)
+    print('encoded_test',X_test_encode)
+    
+    
+    #model = LogisticRegression()
+    #Some errors with xgboost that I will fix later
+    X_test_encode_label =  le.fit_transform(X_test_encode)
+    #model.fit(X_train_encode, y_train)
+    #yhat = model.predict(X_test_encode)
+    xbg_model = xgb.XGBClassifier()
+    
+    xbg_model.fit(X_train_encode,X_test_encode_label)
+    yhat = xbg_model.predict(X_test_encode_label)
+    
+    acc = accuracy_score(y_test, yhat)
+    print(acc)
+    
+    ###Some notes
+    #*LogisticRegression isn't optimized for predicting this type of data, 
+    #it requires 0 and 1 data
+    #*When I used xgboosting it wanted me to relabel the values as an int since 
+    #it seems that the labels are floats
+    
+    #Invalid classes inferred from unique values of `y`.  Expected: [  0   1   2 ....
+    #got [0.02606573 0.02606836 0.02606837 0.0260684 ....
+    #*Once I rebaeled the values it gave a RuntimeError: Could not allocate bytes object!
+    #*I may need to prepare the training and test data w/ the autoencoder 
+    #differently to align with DTree methods
+    #*The autoencoder needs to run to maybe around 300 epoches
+
+    
 """
 #Simple Undercomplete
 import tensorflow  as tf
@@ -350,6 +422,8 @@ autoencoder.fit(x_train, x_train,
 
 """
 #Denoising autoencoder, most interested in this one
+#Fit(x_train,x_train)
+#Only need encorder part
 """
 import tensorflow  as tf
 from tensorflow.keras.datasets import mnist
