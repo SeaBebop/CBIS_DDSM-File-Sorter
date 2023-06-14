@@ -203,7 +203,11 @@ else:
     for i in tqdm(range(0,len(edited_df))):
         #Setting up x and y
         dicomdata = pydicom.read_file(edited_df['DCM_File_Path'].iloc[i],force=True)  # masked image
-        y_label.append(edited_df['Classification'].iloc[i]) 
+        #Change begnign and mag as 1 and 0 respectively
+        if edited_df['Classification'].iloc[i] == 'BEGNIGN':
+            y_label.append(1)     
+        else:
+            y_label.append(0)
         #Testing if labels and dcm align properly 
         #if trigger < 5:
         #    print('This is class ',i+20,edited_df['Classification'].iloc[i+20])
@@ -230,7 +234,7 @@ else:
 
             print('tmp2 dt',tmp2.dtype)
             print('tmp2 shape',tmp2.shape)
-            
+            print('this is tmp 2',tmp2)
             print('this is dimension',dcmMask[i].ndim)
             print('this is shape',dcmMask[i].shape)
             print('this is type',dcmMask[i].dtype)
@@ -240,10 +244,11 @@ else:
             plt.imshow(np.reshape(data, (h, w)), cmap='gray')
             plt.show()
             trigger+=1
+        
         #If you are interested to see all the pictures individually,increased runtime
 
     #print(dcmMask.shape)
-
+    
     x_train, x_test, y_train, y_test = train_test_split(dcmMask, y_label, test_size=0.30, random_state=7)
 
     #Normalize the array to 0 and 1
@@ -258,7 +263,7 @@ else:
     #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    """
+    
     dim_1 = 32768/16
     dim_2 = dim_1/64
     dim_3 = dim_1/128
@@ -297,18 +302,21 @@ else:
     
   
     history = autoencoder.fit(x_train, x_train,
-                        epochs=200,batch_size=16,
+                        epochs=300,batch_size=16,
                        
                         shuffle=True,
                         validation_data=(x_test, x_test))
     encoder = keras.Model(input_img, bottleneck)
     
-    autoencoder.save('autoencoder.h5')
+
+    encoder.save('encoder.h5')
+    
     pyplot.plot(history.history['loss'], label='train')
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
     pyplot.show()
-    """ 
+    
+    """
     #xgboost
     import xgboost as xgb
     from tensorflow.keras.models import load_model
@@ -347,7 +355,7 @@ else:
     
     acc = accuracy_score(y_test, yhat)
     print(acc)
-    
+    """
     ###Some notes
     #*LogisticRegression isn't optimized for predicting this type of data, 
     #it requires 0 and 1 data
