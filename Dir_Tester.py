@@ -5,6 +5,7 @@ Created on Tue Mar 14 13:15:19 2023
 @author: Mario
 """
 import shutil
+
 import os
 import pandas as pd
 from tkinter import Tk
@@ -15,6 +16,9 @@ from tkinter.filedialog import askdirectory
 from time import sleep
 from tqdm import tqdm
 import shutil
+#Tensorflow nvida gpu memo, switch cpu to 
+#Webgl graphic can use any gpu, tensorflow 
+#GPU nvida 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -178,7 +182,7 @@ else:
     from sklearn.model_selection import train_test_split
 
     from matplotlib import pyplot
-    # train autoencoder for classification with no compression in the bottleneck layer
+    # train autoencoder for classification with no compoutputression in the bottleneck layer
     import keras
     from keras import layers
     h = 256
@@ -196,7 +200,8 @@ else:
     
     trigger = 0
     counter = 0
-    dcmMask = np.zeros((len(edited_df),h,w,1), dtype="uint8")
+    #This was uint8, HUGE ISSUE
+    dcmMask = np.zeros((len(edited_df),h,w,1), dtype="float")
     y_label = []
 
     
@@ -204,10 +209,10 @@ else:
         #Setting up x and y
         dicomdata = pydicom.read_file(edited_df['DCM_File_Path'].iloc[i],force=True)  # masked image
         #Change begnign and mag as 1 and 0 respectively
-        if edited_df['Classification'].iloc[i] == 'BEGNIGN':
-            y_label.append(1)     
-        else:
+        if edited_df['Classification'].iloc[i] == 'BENIGN':
             y_label.append(0)
+        else:     
+            y_label.append(1)
         #Testing if labels and dcm align properly 
         #if trigger < 5:
         #    print('This is class ',i+20,edited_df['Classification'].iloc[i+20])
@@ -229,6 +234,7 @@ else:
         #Testing if data is set up as a 3d Rensor
         
         if trigger == 0:
+            """
             print('tmp dt',tmp.dtype)
             print('tmp shape',tmp.shape)
 
@@ -240,11 +246,15 @@ else:
             print('this is type',dcmMask[i].dtype)
             print('this looks like this', dcmMask[i])
             print('This is amax ',np.amax(dcmMask))
+            """
+            """
+            print('this is dcm',dcmMask[i])
             data = tmp2.reshape((h,w,ch))
+            print('this is data after reshape',data)
             plt.imshow(np.reshape(data, (h, w)), cmap='gray')
             plt.show()
             trigger+=1
-        
+        """
         #If you are interested to see all the pictures individually,increased runtime
 
     #print(dcmMask.shape)
@@ -253,31 +263,45 @@ else:
 
     #Normalize the array to 0 and 1
     #print(x_train.shape)
+    #Testing to see if the plots were in fact working
+    #They were not, have to find why
+    
+    #plt.imshow(x_test[1].reshape(256,256,1), cmap='gray')
+    #plt.show()
     x_train = x_train.astype('float32') / 255.
     x_test = x_test.astype('float32') / 255.
+    #plt.imshow(x_test[1].reshape(256,256,1), cmap='gray')
+    #plt.show()
     x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
     x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
+    #plt.imshow(x_test[1].reshape(256,256,1), cmap='YlOrRd')
+    #plt.show()
     #print(x_train.shape)
-    print('test1',y_test)
-    print('train1',y_train)
+    print('test1.3',x_test.shape)
+    print('train1',x_train.shape)    
+
+    
     #######Working pr
     #######Basic autoencoder example from https://blog.keras.io/building-autoencoders-in-keras.html
     # This is the size of our encoded representations
-    
-    dim_1 = 32768/16
-    dim_2 = dim_1/64
-    dim_3 = dim_1/128
+    n_input = 256*256*1    
+    dim_1 = n_input/16
+    dim_2 = dim_1/2
+    dim_3 = dim_1/2 #(I want my result to be 2^12 at the end)
   # 32 floats -> compression of factor 24.5, assuming the input is 784 floats
-    
+  
+    """
     #Sparse Autoencoder That I made
     #Change to fit our current expected input (256,256,1)
-    n_input = 256*256*1
+
     # This is our input image
     input_img = keras.Input(shape=(n_input,))
     # "encoded" is the encoded representation of the input
     encoded_1 = layers.Dense(dim_1, activation='relu',activity_regularizer=l1(0.001))(input_img)
     encoded_2 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(encoded_1)
     # "decoded" is the lossy reconstruction of the input
+   
+    #Change Input dim
     bottleneck = layers.Dense(dim_3, activation='relu',activity_regularizer=l1(0.001))(encoded_2)
     
     decoded_1 = layers.Dense(dim_2, activation='relu',activity_regularizer=l1(0.001))(bottleneck)
@@ -302,19 +326,23 @@ else:
     
   
     history = autoencoder.fit(x_train, x_train,
-                        epochs=300,batch_size=16,
+                        epochs=450,batch_size=74,
                        
                         shuffle=True,
                         validation_data=(x_test, x_test))
     encoder = keras.Model(input_img, bottleneck)
     
-
+    decoder = keras.Model(bottleneck,output)
     encoder.save('encoder.h5')
+    decoder.save('decoder.h5')
+    autoencoder.save('autoencoder.h5')
+
     
     pyplot.plot(history.history['loss'], label='train')
     pyplot.plot(history.history['val_loss'], label='test')
     pyplot.legend()
     pyplot.show()
+    """
     
     """
     #xgboost
@@ -322,39 +350,60 @@ else:
     from tensorflow.keras.models import load_model
     from sklearn.metrics import accuracy_score
     from sklearn.preprocessing import LabelEncoder
+    from sklearn.preprocessing import Normalizer
+    from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
-    le = LabelEncoder()
-    y_test_Label = le.fit_transform(y_test)
+    from sklearn.preprocessing import MinMaxScaler
+    #le = LabelEncoder()
+    #y_test_Label = le.fit_transform(y_test)
     #I have no idea how to use this with feature extraction yet
     #dtrain_reg = xgb.DMatrix(x_train, y_train, enable_categorical=True)
     #dtest_reg = xgb.DMatrix(x_test, y_test, enable_categorical=True)
     
-    autoencoder = load_model('autoencoder.h5')
+    encoder = load_model('./450 Epoch 74 Batch/encoder.h5')
+    decoder = load_model('./450 Epoch 74 Batch/decoder.h5')
     
-    
-    X_train_encode = autoencoder.predict(x_train)
-    X_test_encode = autoencoder.predict(x_test)
-    
+    X_train_encode = encoder.predict(x_train)
+    X_test_encode = encoder.predict(x_test)
+    X_train_decode = decoder.predict(X_train_encode)
     print('test2',y_test)
     print('train2',y_train)
     print('test3',x_test)
     print('train3',x_train)
     print('encoded_train',X_train_encode)
     print('encoded_test',X_test_encode)
+    t = MinMaxScaler()
+    t.fit(x_train)
+    x_train = t.transform(x_train)
+    x_test = t.transform(x_test)
     
-    
-    #model = LogisticRegression()
+    model = LogisticRegression()
+    #model = GradientBoostingClassifier(n_estimators=1000,learning_rate=0.10,max_depth=2, random_state=0)
+
+
     #Some errors with xgboost that I will fix later
-    X_test_encode_label =  le.fit_transform(X_test_encode)
-    #model.fit(X_train_encode, y_train)
-    #yhat = model.predict(X_test_encode)
-    xbg_model = xgb.XGBClassifier()
+    #X_test_encode_label =  le.fit_transform(X_test_encode)
+    print(X_train_encode.shape)
+    print(X_test_encode.shape)
     
-    xbg_model.fit(X_train_encode,X_test_encode_label)
-    yhat = xbg_model.predict(X_test_encode_label)
+
+    #plt.imshow(x_train[0].reshape(256,256), cmap='gray')
+    #plt.show()
+    #plt.imshow(X_train_decode[0].reshape(256,256), cmap='gray')
+    #plt.show()
+    
+    
+    model.fit(X_train_encode, y_train)
+    yhat = model.predict(X_test_encode)
+    #xbg_model = xgb.XGBClassifier()
+    
+    #xbg_model.fit(X_train_encode,X_test_encode_label)
+    #yhat = xbg_model.predict(X_test_encode_label)
     
     acc = accuracy_score(y_test, yhat)
+    print('this isn',1 in x_train)
     print(acc)
+    
     """
     ###Some notes
     #*LogisticRegression isn't optimized for predicting this type of data, 
@@ -368,7 +417,8 @@ else:
     #*I may need to prepare the training and test data w/ the autoencoder 
     #differently to align with DTree methods
     #*The autoencoder needs to run to maybe around 300 epoches
-
+    """
+"""
     
 """
 #Simple Undercomplete
